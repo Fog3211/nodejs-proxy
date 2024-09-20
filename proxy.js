@@ -14,12 +14,13 @@ const DEFAULT_TARGET_URL = "https://shop.huanghanlian.com";
 
 // Configure proxy
 const setupProxy = (req, res, next) => {
-  // Get target URL from query parameter or use default
   /**
    * support query parameter: target
-   * example: http://localhost:3000/api/common/OneFilm?target=https://api.oioweb.cn/api/common/OneFilm
+   * example: http://localhost:3000/api/v1/simple/api/common/OneFilm?target=https://api.oioweb.cn
    */
-  const targetUrl = req.query.target || DEFAULT_TARGET_URL;
+  const targetOrigin = req.query.target || DEFAULT_TARGET_URL;
+  
+  const targetUrl = targetOrigin;
 
   // Validate target URL
   if (!isValidUrl(targetUrl)) {
@@ -29,9 +30,18 @@ const setupProxy = (req, res, next) => {
     });
   }
 
+  // Extract the base path from the original URL
+  const basePath = req.baseUrl;
+
   const proxyMiddleware = createProxyMiddleware({
     target: targetUrl,
     changeOrigin: true,
+    pathRewrite: (path) => {
+      // Dynamically remove the base path
+      const newPath = path.replace(new RegExp(`^${basePath}`), "");
+      console.log(`Path rewrite: ${path} -> ${newPath}`);
+      return newPath;
+    },
     onProxyRes: (proxyRes, req, res) => {
       // Preserve original response headers
       Object.keys(proxyRes.headers).forEach((key) => {
@@ -50,7 +60,7 @@ const setupProxy = (req, res, next) => {
     // Add logging for debugging
     logLevel: isDevelopment ? "debug" : "info",
     onProxyReq: (proxyReq, req, res) => {
-      console.log("Proxying:", req.method, req.url, "->", targetUrl + proxyReq.path);
+      console.log("Proxying:", req.method, req.originalUrl, "->", targetUrl + proxyReq.path);
     }
   });
 
@@ -58,8 +68,8 @@ const setupProxy = (req, res, next) => {
   return proxyMiddleware(req, res, next);
 };
 
-// Handle only /api routes
-app.use("/api", setupProxy);
+// Handle routes dynamically
+app.use("/api/v1/simple", setupProxy);
 
 // URL validation helper function
 function isValidUrl(string) {
